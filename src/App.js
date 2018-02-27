@@ -55,6 +55,19 @@ class App extends Component {
     })
   }
 
+  signString(senderAddress, text) {
+    /*
+    * Sign a string and return (hash, v, r, s) used by ecrecover to regenerate the coinbase address;
+    */
+    let sha = '0x' + this.state.web3.sha3(text);
+    let sig = this.state.web3.eth.sign(senderAddress, sha);
+    sig = sig.substr(2, sig.length); //remove 0x
+    let r = '0x' + sig.substr(0, 64);
+    let s = '0x' + sig.substr(64, 64);
+    let v = this.state.web3.toDecimal(sig.substr(128, 2)) + 27;
+    return {sha, v, r, s};
+  }
+
   instantiateContract() {
     /*
      * SMART CONTRACT EXAMPLE
@@ -74,7 +87,9 @@ class App extends Component {
     this.state.web3.eth.getAccounts((error, accounts) => {
       paymentChannel.deployed().then((instance) => {
         paymentChannelInstance = instance
-        this.state.web3.eth.defaultAccount = this.state.web3.eth.accounts[0]
+        const web3 = this.state.web3
+        web3.eth.defaultAccount = this.state.web3.eth.accounts[0]
+        this.setState({web3})
 
         // Open channel
         let senderAddress = this.state.web3.eth.accounts[0]
@@ -91,16 +106,10 @@ class App extends Component {
         // Close channel
         let senderAddress = this.state.web3.eth.accounts[0]
         let recipientAddress = this.state.web3.eth.accounts[3]
-        let msg = this.state.web3.sha3(senderAddress + recipientAddress + "5")
-        let signature = this.state.web3.eth.sign(senderAddress, '0x' + this.toHex(msg))
 
-        signature = signature.substr(2); //remove 0x
-        const r = '0x' + signature.slice(0, 64)
-        const s = '0x' + signature.slice(64, 128)
-        const v = '0x' + signature.slice(128, 130)
-        const v_decimal = this.state.web3.toDecimal(v)
+        let {sha, v_decimal, r, s} = this.signString(senderAddress, Buffer.from(senderAddress + recipientAddress + "5").toString('hex'))
 
-        console.log(signature)
+        console.log(sha, v_decimal, r, s)
         this.setState({storageValue: 4})
         return paymentChannelInstance.closeChannel(senderAddress, recipientAddress, 5, v_decimal, r, s, {gas: 4712388, gasPrice: 1})
       }).then((txHash) => {
