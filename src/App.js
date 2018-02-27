@@ -1,5 +1,5 @@
 import React, { Component } from 'react'
-import SimpleStorageContract from '../build/contracts/SimpleStorage.json'
+import PaymentChannel from '../build/contracts/UnidirectionalPaymentChannelManager.json'
 import getWeb3 from './utils/getWeb3'
 
 import './css/oswald.css'
@@ -15,6 +15,26 @@ class App extends Component {
       storageValue: 0,
       web3: null
     }
+  }
+
+  async waitForTxToBeMined (txHash) {
+    // let txReceipt
+    // while (!txReceipt) {
+    //   try {
+    //     txReceipt = await this.state.web3.eth.getTransactionReceipt(txHash)
+    //   } catch (err) {
+    //     console.log("Failure!: " + err)
+    //   }
+    // }
+    console.log("Success!: " + txHash)
+  }
+
+  toHex(str) {
+    var hex = ''
+    for(var i=0;i<str.length;i++) {
+     hex += ''+str.charCodeAt(i).toString(16)
+    }
+    return hex
   }
 
   componentWillMount() {
@@ -44,25 +64,52 @@ class App extends Component {
      */
 
     const contract = require('truffle-contract')
-    const simpleStorage = contract(SimpleStorageContract)
-    simpleStorage.setProvider(this.state.web3.currentProvider)
+    const paymentChannel = contract(PaymentChannel)
+    paymentChannel.setProvider(this.state.web3.currentProvider)
 
-    // Declaring this for later so we can chain functions on SimpleStorage.
-    var simpleStorageInstance
-
+    // Declaring this for later so we can chain functions on PaymentChannel.
+    var paymentChannelInstance
+    this.setState({storageValue: 1})
     // Get accounts.
     this.state.web3.eth.getAccounts((error, accounts) => {
-      simpleStorage.deployed().then((instance) => {
-        simpleStorageInstance = instance
+      paymentChannel.deployed().then((instance) => {
+        paymentChannelInstance = instance
+        this.state.web3.eth.defaultAccount = this.state.web3.eth.accounts[0]
 
-        // Stores a given value, 5 by default.
-        return simpleStorageInstance.set(5, {from: accounts[0]})
+        // Open channel
+        let senderAddress = this.state.web3.eth.accounts[0]
+        let recipientAddress = this.state.web3.eth.accounts[3]
+        this.setState({storageValue: 2})
+        return paymentChannelInstance.openChannel(recipientAddress, {from: senderAddress, gas: 4712388, value: 10})
+      }).then((txHash) => {
+        // Wait for tx to be mined
+        console.log('Transaction sent')
+        console.log(txHash)
+        this.setState({storageValue: 3})
+        return this.waitForTxToBeMined(txHash)
       }).then((result) => {
-        // Get the value from the contract to prove it worked.
-        return simpleStorageInstance.get.call(accounts[0])
-      }).then((result) => {
-        // Update state with the result.
-        return this.setState({ storageValue: result.c[0] })
+        // Close channel
+        let senderAddress = this.state.web3.eth.accounts[0]
+        let recipientAddress = this.state.web3.eth.accounts[3]
+        let msg = this.state.web3.sha3(senderAddress + recipientAddress + "5")
+        let signature = this.state.web3.eth.sign(senderAddress, '0x' + this.toHex(msg))
+
+        signature = signature.substr(2); //remove 0x
+        const r = '0x' + signature.slice(0, 64)
+        const s = '0x' + signature.slice(64, 128)
+        const v = '0x' + signature.slice(128, 130)
+        const v_decimal = this.state.web3.toDecimal(v)
+
+        console.log(signature)
+        this.setState({storageValue: 4})
+        return paymentChannelInstance.closeChannel(senderAddress, recipientAddress, 5, v_decimal, r, s, {gas: 4712388, gasPrice: 1})
+      }).then((txHash) => {
+        // wait for tx to be mined
+        console.log('Transaction sent')
+        console.log(txHash)
+        return this.waitForTxToBeMined(txHash)
+      }).catch( e => {
+        console.log(e)
       })
     })
   }

@@ -51,7 +51,11 @@
   "dependencies": {
     "dotenv": "^2.0.0",
     "react": "^15.4.2",
-    "react-dom": "^15.4.2"
+    "react-dom": "^15.4.2",
+    "solc": "^0.4.20",
+    "web3": "^1.0.0-beta.30",
+    "web3-provider-engine": "^13.6.5",
+    "zeppelin-solidity": "1.6.0"
   },
   "scripts": {
     "start": "node scripts/start.js",
