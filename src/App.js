@@ -13,7 +13,8 @@ class App extends Component {
 
     this.state = {
       storageValue: 0,
-      web3: null
+      web3: null,
+      paymentChannelInstance: null
     }
   }
 
@@ -55,17 +56,21 @@ class App extends Component {
     })
   }
 
-  signString(senderAddress, text) {
+  signString(senderAddress, recipientAddress, valueToTransfer) {
     /*
     * Sign a string and return (hash, v, r, s) used by ecrecover to regenerate the coinbase address;
     */
-    let sha = '0x' + this.state.web3.sha3(text);
-    let sig = this.state.web3.eth.sign(senderAddress, sha);
-    sig = sig.substr(2, sig.length); //remove 0x
-    let r = '0x' + sig.substr(0, 64);
-    let s = '0x' + sig.substr(64, 64);
-    let v = this.state.web3.toDecimal(sig.substr(128, 2)) + 27;
-    return {sha, v, r, s};
+    // var msg = `${senderAddress}${recipientAddress}`
+    var msg = `${senderAddress.slice(2)}${recipientAddress.slice(2)}`
+    // var msgHex = '0x' + Buffer.from(msg).toString('hex')
+    var encodedMsg = this.state.web3.sha3(msg, { encoding: 'hex' })
+    var sig = this.state.web3.eth.sign(senderAddress, encodedMsg).slice(2)
+    var r = `0x${sig.slice(0, 64)}`
+    var s = `0x${sig.slice(64, 128)}`
+    var v = this.state.web3.toDecimal(sig.slice(128, 130)) + 27
+
+
+    return {msg, v, r, s};
   }
 
   instantiateContract() {
@@ -79,23 +84,21 @@ class App extends Component {
     const contract = require('truffle-contract')
     const paymentChannel = contract(PaymentChannel)
     paymentChannel.setProvider(this.state.web3.currentProvider)
+    var senderAddress
+    var recipientAddress
 
-    // Declaring this for later so we can chain functions on PaymentChannel.
-    var paymentChannelInstance
-    this.setState({storageValue: 1})
     // Get accounts.
     this.state.web3.eth.getAccounts((error, accounts) => {
       paymentChannel.deployed().then((instance) => {
-        paymentChannelInstance = instance
+        this.setState({paymentChannelInstance: instance})
         const web3 = this.state.web3
         web3.eth.defaultAccount = this.state.web3.eth.accounts[0]
         this.setState({web3})
 
         // Open channel
-        let senderAddress = this.state.web3.eth.accounts[0]
-        let recipientAddress = this.state.web3.eth.accounts[3]
-        this.setState({storageValue: 2})
-        return paymentChannelInstance.openChannel(recipientAddress, {from: senderAddress, gas: 4712388, value: 10})
+        senderAddress = this.state.web3.eth.accounts[0]
+        recipientAddress = this.state.web3.eth.accounts[3]
+        return this.openChannel(senderAddress, recipientAddress, 20)
       }).then((txHash) => {
         // Wait for tx to be mined
         console.log('Transaction sent')
@@ -103,15 +106,17 @@ class App extends Component {
         this.setState({storageValue: 3})
         return this.waitForTxToBeMined(txHash)
       }).then((result) => {
+        // Validate Signature
+        let {_, v, r, s} = this.signOffChainPayment(senderAddress, recipientAddress, 5)
+        return this.validateSignature(senderAddress, recipientAddress, 5, v, r, s)
+      }).then((result) => {
         // Close channel
-        let senderAddress = this.state.web3.eth.accounts[0]
-        let recipientAddress = this.state.web3.eth.accounts[3]
-
-        let {sha, v_decimal, r, s} = this.signString(senderAddress, Buffer.from(senderAddress + recipientAddress + "5").toString('hex'))
-
-        console.log(sha, v_decimal, r, s)
-        this.setState({storageValue: 4})
-        return paymentChannelInstance.closeChannel(senderAddress, recipientAddress, 5, v_decimal, r, s, {gas: 4712388, gasPrice: 1})
+        if(result !== true) {
+          throw Error("Invalid signature error")
+        }
+        let {_, v_decimal, r, s} = this.signOffChainPayment(senderAddress, recipientAddress, 5)
+        return this.closeChannel(senderAddress, recipientAddress, 5, v_decimal, r, s)
+      
       }).then((txHash) => {
         // wait for tx to be mined
         console.log('Transaction sent')
@@ -121,6 +126,80 @@ class App extends Component {
         console.log(e)
       })
     })
+  }
+
+  async openChannel(
+    senderAddress, 
+    recipientAddress, 
+    collateral
+  ) {
+    return this.state.paymentChannelInstance.openChannel(
+        senderAddress, 
+        recipientAddress, 
+        collateral,
+        {from: senderAddress, gas: 4712388, value: collateral}
+      )
+  }
+
+  signOffChainPayment(
+    senderAddress, 
+    recipientAddress, 
+    valueToTransfer
+  ) {
+    return this.signString(
+        senderAddress, 
+        recipientAddress,
+        valueToTransfer
+    )
+  }
+
+  async validateSignature(
+    senderAddress, 
+    recipientAddress, 
+    valueTransferred, 
+    v, 
+    r, 
+    s
+  ) {
+    var message = `${senderAddress}${recipientAddress}`
+    return this.state.paymentChannelInstance.verifySignature.call(
+        this.state.web3.sha3(`\x19Ethereum Signed Message:\n${message.length}${message}`),
+        // message,
+        senderAddress, 
+        recipientAddress, 
+        valueTransferred, 
+        v, 
+        r, 
+        s,
+        {gas: 4712388, gasPrice: 1}
+      )
+  }
+
+  async closeChannel(
+    senderAddress, 
+    recipientAddress, 
+    valueTransferred, 
+    v_decimal, 
+    r, 
+    s
+  ) {
+    return this.state.paymentChannelInstance.closeChannel(
+        senderAddress, 
+        recipientAddress, 
+        valueTransferred, 
+        v_decimal, 
+        r, 
+        s, 
+        {gas: 4712388, gasPrice: 1}
+      )
+  }
+
+  getProviderSignaturePrefix(message, provider) {
+    if (provider === 'testrpc' || provider === 'geth' || provider === 'parity') {
+      return `\x19Ethereum Signed Message:\n${message.length}`
+    } else {
+      return ''
+    }
   }
 
   render() {

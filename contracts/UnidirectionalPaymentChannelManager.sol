@@ -37,29 +37,20 @@ contract UnidirectionalPaymentChannelManager {
             revert();
         }
 
+        // Make sure value transferred is less than collateral
+        if (channels[sender][recipient].collateral >= valueTransferred) {
+            revert();
+        }
+
         // Load channel into memory
         Channel memory channel = channels[sender][recipient];
 
-        // Validate either sender or recipient is sending this message
-        if (!(msg.sender == channel.sender || msg.sender == channel.recipient)) {
-            revert();
-        }
-
-        // Validate Signature with sha3 (alias for keccak256)
-        bytes32 hash = keccak256(
-            sender,
-            recipient,
-            valueTransferred
-        );
-
-        address signerAddress = ecrecover(hash,v,r,s);
-
-        if (!(signerAddress == channel.sender || signerAddress == channel.recipient)) {
-            revert();
-        }
+        // if (!verifySignature(sender, recipient, valueTransferred, v, r, s)) {
+        //     revert();
+        // }
 
         // Settle up
-        settleBalances(channels[sender][recipient], valueTransferred);
+        settleBalances(channel, valueTransferred);
 
         // Remove mapping
         delete channels[sender][recipient];
@@ -74,6 +65,41 @@ contract UnidirectionalPaymentChannelManager {
     {
         channel.recipient.transfer(valueTransferred);
         channel.sender.transfer((channel.collateral - valueTransferred));
+    }
+
+
+    function verifySignature(
+        bytes32 message,
+        address sender, 
+        address recipient, 
+        uint valueTransferred,
+        uint8 v, 
+        bytes32 r, 
+        bytes32 s
+    ) 
+    public pure returns (bool, address, bytes32)
+    {
+        bytes memory prefix = "\x19Ethereum Signed Message:\n32";
+
+        // Validate Signature with sha3 (alias for keccak256)
+        bytes32 messageHash = keccak256(
+            sender,
+            recipient
+            // bytes32(valueTransferred)
+        );
+
+        bytes32 prefixedHash = keccak256(
+            prefix,
+            messageHash
+        );
+
+        address signerAddress = ecrecover(prefixedHash,v,r,s);
+
+        if (signerAddress != sender) {
+            return (false, signerAddress, messageHash);
+        }
+
+        return (true, signerAddress, messageHash);
     }
 
 }
