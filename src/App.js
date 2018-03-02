@@ -18,8 +18,14 @@ class App extends Component {
     this.state = {
       storageValue: 0,
       web3: null,
-      paymentChannelInstance: null
+      paymentChannelInstance: null,
+      senderAddress: null,
+      recipientAddress: null,
+      channelCollateral: null
     }
+    
+    this.web3Utils = require('web3-utils')
+
   }
 
   async waitForTxToBeMined (txHash) {
@@ -63,44 +69,48 @@ class App extends Component {
     const contract = require('truffle-contract')
     const paymentChannel = contract(PaymentChannel)
     paymentChannel.setProvider(this.state.web3.currentProvider)
-    var senderAddress
-    var recipientAddress
+    // var senderAddress
+    // var recipientAddress
 
     // Get accounts.
     this.state.web3.eth.getAccounts((error, accounts) => {
       paymentChannel.deployed().then((instance) => {
-        this.setState({paymentChannelInstance: instance})
+
         const web3 = this.state.web3
         web3.eth.defaultAccount = this.state.web3.eth.accounts[0]
-        this.setState({web3})
 
-        // Open channel
-        senderAddress = this.state.web3.eth.accounts[0]
-        recipientAddress = this.state.web3.eth.accounts[3]
-        return this.openChannel(senderAddress, recipientAddress, 20)
-      }).then((txHash) => {
-        // Wait for tx to be mined
-        console.log('Transaction sent')
-        console.log(txHash)
-        this.setState({storageValue: 3})
-        return this.waitForTxToBeMined(txHash)
-      }).then((result) => {
-        // Validate Signature
-        let {_, v, r, s} = this.signOffChainPayment(senderAddress, recipientAddress, 5)
-        return this.validateSignature(senderAddress, recipientAddress, 5, v, r, s)
-      }).then((result) => {
-        // Close channel
-        if(result !== true) {
-          throw Error("Invalid signature error")
-        }
-        let {_, v_decimal, r, s} = this.signOffChainPayment(senderAddress, recipientAddress, 5)
-        return this.closeChannel(senderAddress, recipientAddress, 5, v_decimal, r, s)
+        this.setState(
+          {
+            paymentChannelInstance: instance,
+            web3: web3
+          }
+        )
+
+      //   // Open channel
+      //   return this.openChannel(this.state.senderAddress, this.state.recipientAddress, 20)
+      // }).then((txHash) => {
+      //   // Wait for tx to be mined
+      //   console.log('Transaction sent')
+      //   console.log(txHash)
+      //   this.setState({storageValue: 3})
+      //   return this.waitForTxToBeMined(txHash)
+      // }).then((result) => {
+      //   // Validate Signature
+      //   let {_, v, r, s} = this.signOffChainPayment(this.state.senderAddress, this.state.recipientAddress, 5)
+      //   return this.validateSignature(this.state.senderAddress, this.state.recipientAddress, 5, v, r, s)
+      // }).then((result) => {
+      //   // Close channel
+      //   if(result !== true) {
+      //     throw Error("Invalid signature error")
+      //   }
+      //   let {_, v_decimal, r, s} = this.signOffChainPayment(this.state.senderAddress, this.state.recipientAddress, 5)
+      //   return this.closeChannel(this.state.senderAddress, this.state.recipientAddress, 5, v_decimal, r, s)
       
-      }).then((txHash) => {
-        // wait for tx to be mined
-        console.log('Transaction sent')
-        console.log(txHash)
-        return this.waitForTxToBeMined(txHash)
+      // }).then((txHash) => {
+      //   // wait for tx to be mined
+      //   console.log('Transaction sent')
+      //   console.log(txHash)
+      //   return this.waitForTxToBeMined(txHash)
       }).catch( e => {
         console.log(e)
       })
@@ -113,11 +123,17 @@ class App extends Component {
     collateral
   ) {
     return this.state.paymentChannelInstance.openChannel(
-        senderAddress, 
         recipientAddress, 
-        collateral,
         {from: senderAddress, gas: 4712388, value: collateral}
+    ).then(txHash => {
+      this.setState(
+        {
+          senderAddress: senderAddress, 
+          recipientAddress: recipientAddress,
+          channelCollateral: collateral
+        }
       )
+    })
   }
 
   signOffChainPayment(
@@ -129,8 +145,7 @@ class App extends Component {
     * Sign a string and return (hash, v, r, s) used by ecrecover to regenerate the coinbase address;
     */
 
-    const web3Utils = require('web3-utils')
-    const encodedMsg = web3Utils.soliditySha3(
+    const encodedMsg = this.web3Utils.soliditySha3(
       {
         type: 'address',
         value: senderAddress
@@ -168,7 +183,7 @@ class App extends Component {
         r, 
         s,
         {gas: 4712388, gasPrice: 1}
-      )
+    )
   }
 
   async closeChannel(
@@ -190,6 +205,24 @@ class App extends Component {
       )
   }
 
+  async searchChannel(
+    senderAddress, 
+    recipientAddress, 
+  ) {
+    this.state.paymentChannelInstance.getChannelCollateral.call(
+        senderAddress, 
+        recipientAddress, 
+        {gas: 4712388, gasPrice: 1}
+    ).then(collateral => {
+      this.setState(
+        {senderAddress: senderAddress, 
+         recipientAddress: recipientAddress,
+         channelCollateral: collateral.toNumber(),
+        }
+      )
+    })
+  }
+
   render() {
     return (
       <div className="App">
@@ -200,9 +233,13 @@ class App extends Component {
         <main className="container">
           <div className="pure-g">
             <div className="pure-u-1-1">
-              < OpenChannelForm />
-              < SearchBox />
-              < ChannelInformationForm />
+              <OpenChannelForm openChannel={this.openChannel.bind(this)}/>
+              <SearchBox searchChannel={this.searchChannel.bind(this)}/>
+              <ChannelInformationForm
+                senderAddress={this.state.senderAddress} 
+                recipientAddress={this.state.recipientAddress} 
+                channelCollateral={this.state.channelCollateral}
+              />
             </div>
           </div>
         </main>
@@ -210,6 +247,5 @@ class App extends Component {
     );
   }
 }
-// ReactDOM.render(<App/>, document.getElementById('App'));
 
 export default App
