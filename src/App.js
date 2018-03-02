@@ -60,17 +60,29 @@ class App extends Component {
     /*
     * Sign a string and return (hash, v, r, s) used by ecrecover to regenerate the coinbase address;
     */
-    // var msg = `${senderAddress}${recipientAddress}`
-    var msg = `${senderAddress.slice(2)}${recipientAddress.slice(2)}`
-    // var msgHex = '0x' + Buffer.from(msg).toString('hex')
-    var encodedMsg = this.state.web3.sha3(msg, { encoding: 'hex' })
+
+    const web3Utils = require('web3-utils')
+    const encodedMsg = web3Utils.soliditySha3(
+      {
+        type: 'address',
+        value: senderAddress
+      },
+      {
+        type: 'address',
+        value: recipientAddress
+      },
+      {
+        type: 'uint',
+        value: valueToTransfer
+      },
+    ) 
     var sig = this.state.web3.eth.sign(senderAddress, encodedMsg).slice(2)
     var r = `0x${sig.slice(0, 64)}`
     var s = `0x${sig.slice(64, 128)}`
     var v = this.state.web3.toDecimal(sig.slice(128, 130)) + 27
 
 
-    return {msg, v, r, s};
+    return {encodedMsg, v, r, s};
   }
 
   instantiateContract() {
@@ -161,10 +173,7 @@ class App extends Component {
     r, 
     s
   ) {
-    var message = `${senderAddress}${recipientAddress}`
     return this.state.paymentChannelInstance.verifySignature.call(
-        this.state.web3.sha3(`\x19Ethereum Signed Message:\n${message.length}${message}`),
-        // message,
         senderAddress, 
         recipientAddress, 
         valueTransferred, 
@@ -192,14 +201,6 @@ class App extends Component {
         s, 
         {gas: 4712388, gasPrice: 1}
       )
-  }
-
-  getProviderSignaturePrefix(message, provider) {
-    if (provider === 'testrpc' || provider === 'geth' || provider === 'parity') {
-      return `\x19Ethereum Signed Message:\n${message.length}`
-    } else {
-      return ''
-    }
   }
 
   render() {

@@ -45,9 +45,9 @@ contract UnidirectionalPaymentChannelManager {
         // Load channel into memory
         Channel memory channel = channels[sender][recipient];
 
-        // if (!verifySignature(sender, recipient, valueTransferred, v, r, s)) {
-        //     revert();
-        // }
+        if (!verifySignature(sender, recipient, valueTransferred, v, r, s)) {
+            revert();
+        }
 
         // Settle up
         settleBalances(channel, valueTransferred);
@@ -69,7 +69,6 @@ contract UnidirectionalPaymentChannelManager {
 
 
     function verifySignature(
-        bytes32 message,
         address sender, 
         address recipient, 
         uint valueTransferred,
@@ -77,15 +76,15 @@ contract UnidirectionalPaymentChannelManager {
         bytes32 r, 
         bytes32 s
     ) 
-    public pure returns (bool, address, bytes32)
+    public pure returns (bool)
     {
         bytes memory prefix = "\x19Ethereum Signed Message:\n32";
 
         // Validate Signature with sha3 (alias for keccak256)
         bytes32 messageHash = keccak256(
             sender,
-            recipient
-            // bytes32(valueTransferred)
+            recipient,
+            valueTransferred
         );
 
         bytes32 prefixedHash = keccak256(
@@ -96,10 +95,10 @@ contract UnidirectionalPaymentChannelManager {
         address signerAddress = ecrecover(prefixedHash,v,r,s);
 
         if (signerAddress != sender) {
-            return (false, signerAddress, messageHash);
+            return false;
         }
 
-        return (true, signerAddress, messageHash);
+        return true;
     }
 
 }
