@@ -102,4 +102,15 @@ contract UnidirectionalPaymentChannelManager {
         return true;
     }
 
+
+    function getChannelCollateral(
+        address sender, 
+        address recipient
+    ) 
+    public view returns (uint) 
+    {
+        assert(channels[sender][recipient].collateral > 0);
+        return channels[sender][recipient].collateral;
+    }
+
 }
