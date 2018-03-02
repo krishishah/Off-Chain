@@ -78,9 +78,10 @@ contract UnidirectionalPaymentChannelManager {
     ) 
     public pure returns (bool)
     {
+        // Required for providers such as: Geth, Parity, TestRPC
         bytes memory prefix = "\x19Ethereum Signed Message:\n32";
 
-        // Validate Signature with sha3 (alias for keccak256)
+        // 2 Step Validate Signature with sha3 (alias for keccak256)
         bytes32 messageHash = keccak256(
             sender,
             recipient,

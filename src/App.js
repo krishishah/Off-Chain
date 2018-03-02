@@ -30,14 +30,6 @@ class App extends Component {
     console.log("Success!: " + txHash)
   }
 
-  toHex(str) {
-    var hex = ''
-    for(var i=0;i<str.length;i++) {
-     hex += ''+str.charCodeAt(i).toString(16)
-    }
-    return hex
-  }
-
   componentWillMount() {
     // Get network provider and web3 instance.
     // See utils/getWeb3 for more info.
@@ -54,35 +46,6 @@ class App extends Component {
     .catch(() => {
       console.log('Error finding web3.')
     })
-  }
-
-  signString(senderAddress, recipientAddress, valueToTransfer) {
-    /*
-    * Sign a string and return (hash, v, r, s) used by ecrecover to regenerate the coinbase address;
-    */
-
-    const web3Utils = require('web3-utils')
-    const encodedMsg = web3Utils.soliditySha3(
-      {
-        type: 'address',
-        value: senderAddress
-      },
-      {
-        type: 'address',
-        value: recipientAddress
-      },
-      {
-        type: 'uint',
-        value: valueToTransfer
-      },
-    ) 
-    var sig = this.state.web3.eth.sign(senderAddress, encodedMsg).slice(2)
-    var r = `0x${sig.slice(0, 64)}`
-    var s = `0x${sig.slice(64, 128)}`
-    var v = this.state.web3.toDecimal(sig.slice(128, 130)) + 27
-
-
-    return {encodedMsg, v, r, s};
   }
 
   instantiateContract() {
@@ -158,11 +121,31 @@ class App extends Component {
     recipientAddress, 
     valueToTransfer
   ) {
-    return this.signString(
-        senderAddress, 
-        recipientAddress,
-        valueToTransfer
-    )
+    /*
+    * Sign a string and return (hash, v, r, s) used by ecrecover to regenerate the coinbase address;
+    */
+
+    const web3Utils = require('web3-utils')
+    const encodedMsg = web3Utils.soliditySha3(
+      {
+        type: 'address',
+        value: senderAddress
+      },
+      {
+        type: 'address',
+        value: recipientAddress
+      },
+      {
+        type: 'uint',
+        value: valueToTransfer
+      }
+    ) 
+    var sig = this.state.web3.eth.sign(senderAddress, encodedMsg).slice(2)
+    var r = `0x${sig.slice(0, 64)}`
+    var s = `0x${sig.slice(64, 128)}`
+    var v = this.state.web3.toDecimal(sig.slice(128, 130)) + 27
+
+    return {encodedMsg, v, r, s};
   }
 
   async validateSignature(
