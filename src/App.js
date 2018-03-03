@@ -3,6 +3,8 @@ import PaymentChannel from '../build/contracts/UnidirectionalPaymentChannelManag
 import getWeb3 from './utils/getWeb3'
 import ChannelInformationForm from './components/channelInformationForm'
 import OpenChannelForm from './components/openChannelForm'
+import CloseChannelForm from './components/closeChannelForm'
+import SignPaymentForm from './components/signPaymentForm'
 import SearchBox from './components/searchBox'
 import ReactDOM from 'react-dom'
 
@@ -21,7 +23,10 @@ class App extends Component {
       paymentChannelInstance: null,
       senderAddress: null,
       recipientAddress: null,
-      channelCollateral: null
+      channelCollateral: null,
+      v: null,
+      r: null,
+      s: null
     }
     
     this.web3Utils = require('web3-utils')
@@ -164,6 +169,14 @@ class App extends Component {
     var s = `0x${sig.slice(64, 128)}`
     var v = this.state.web3.toDecimal(sig.slice(128, 130)) + 27
 
+    this.setState(
+      {
+        v: v, 
+        r: r,
+        s: s
+      }
+    )
+
     return {encodedMsg, v, r, s};
   }
 
@@ -215,9 +228,10 @@ class App extends Component {
         {gas: 4712388, gasPrice: 1}
     ).then(collateral => {
       this.setState(
-        {senderAddress: senderAddress, 
-         recipientAddress: recipientAddress,
-         channelCollateral: collateral.toNumber(),
+        {
+          senderAddress: senderAddress, 
+          recipientAddress: recipientAddress,
+          channelCollateral: collateral.toNumber(),
         }
       )
     })
@@ -239,6 +253,19 @@ class App extends Component {
                 senderAddress={this.state.senderAddress} 
                 recipientAddress={this.state.recipientAddress} 
                 channelCollateral={this.state.channelCollateral}
+              />
+              <SignPaymentForm
+                senderAddress={this.state.senderAddress} 
+                recipientAddress={this.state.recipientAddress} 
+                v={this.state.v}
+                r={this.state.r}
+                s={this.state.s}
+                signOffChainPayment={this.signOffChainPayment.bind(this)}
+              />
+              <CloseChannelForm
+                senderAddress={this.state.senderAddress} 
+                recipientAddress={this.state.recipientAddress} 
+                closeChannel={this.closeChannel.bind(this)}
               />
             </div>
           </div>

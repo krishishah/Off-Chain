@@ -37,8 +37,8 @@ contract UnidirectionalPaymentChannelManager {
             revert();
         }
 
-        // Make sure value transferred is less than collateral
-        if (channels[sender][recipient].collateral >= valueTransferred) {
+        // Make sure value transferred is less than or equal to collateral
+        if (channels[sender][recipient].collateral < valueTransferred) {
             revert();
         }
 
@@ -110,7 +110,6 @@ contract UnidirectionalPaymentChannelManager {
     public view returns (uint) 
     {
         Channel memory channel = channels[sender][recipient];
-        // assert(channels[sender][recipient].collateral > 0);
         return channel.collateral;
     }
 
