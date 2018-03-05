@@ -14,6 +14,18 @@ contract UnidirectionalPaymentChannelManager {
 
     function openChannel(address recipient) public payable {
         //perform some validation first
+        if (msg.value == 0) { 
+            revert(); 
+        }
+        
+        if (recipient == msg.sender) { 
+            revert(); 
+        }
+
+        if (channels[msg.sender][recipient].collateral > 0) {
+            revert();
+        }
+
         channels[msg.sender][recipient] = Channel({
             sender:msg.sender,
             recipient: recipient,
@@ -37,13 +49,18 @@ contract UnidirectionalPaymentChannelManager {
             revert();
         }
 
+        // Load channel into memory
+        Channel memory channel = channels[sender][recipient];
+
         // Make sure value transferred is less than or equal to collateral
-        if (channels[sender][recipient].collateral < valueTransferred) {
+        if (msg.sender != channel.recipient) {
             revert();
         }
 
-        // Load channel into memory
-        Channel memory channel = channels[sender][recipient];
+        // Make sure value transferred is less than or equal to collateral
+        if (channel.collateral < valueTransferred) {
+            revert();
+        }
 
         if (!verifySignature(sender, recipient, valueTransferred, v, r, s)) {
             revert();

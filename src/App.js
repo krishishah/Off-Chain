@@ -90,32 +90,6 @@ class App extends Component {
             web3: web3
           }
         )
-
-      //   // Open channel
-      //   return this.openChannel(this.state.senderAddress, this.state.recipientAddress, 20)
-      // }).then((txHash) => {
-      //   // Wait for tx to be mined
-      //   console.log('Transaction sent')
-      //   console.log(txHash)
-      //   this.setState({storageValue: 3})
-      //   return this.waitForTxToBeMined(txHash)
-      // }).then((result) => {
-      //   // Validate Signature
-      //   let {_, v, r, s} = this.signOffChainPayment(this.state.senderAddress, this.state.recipientAddress, 5)
-      //   return this.validateSignature(this.state.senderAddress, this.state.recipientAddress, 5, v, r, s)
-      // }).then((result) => {
-      //   // Close channel
-      //   if(result !== true) {
-      //     throw Error("Invalid signature error")
-      //   }
-      //   let {_, v_decimal, r, s} = this.signOffChainPayment(this.state.senderAddress, this.state.recipientAddress, 5)
-      //   return this.closeChannel(this.state.senderAddress, this.state.recipientAddress, 5, v_decimal, r, s)
-      
-      // }).then((txHash) => {
-      //   // wait for tx to be mined
-      //   console.log('Transaction sent')
-      //   console.log(txHash)
-      //   return this.waitForTxToBeMined(txHash)
       }).catch( e => {
         console.log(e)
       })
@@ -214,7 +188,7 @@ class App extends Component {
         v_decimal, 
         r, 
         s, 
-        {gas: 4712388, gasPrice: 1}
+        {from: recipientAddress, gas: 4712388, gasPrice: 1}
       )
   }
 
@@ -241,7 +215,7 @@ class App extends Component {
     return (
       <div className="App">
         <nav className="navbar pure-menu pure-menu-horizontal">
-            <a href="#" className="pure-menu-heading pure-menu-link">Off-Chain: Ethereum Payment Channel</a>
+            <a href="#" className="pure-menu-heading pure-menu-link">Off-Chain: A Simple Unidirectional Ethereum Payment Channel</a>
         </nav>
 
         <main className="container">
